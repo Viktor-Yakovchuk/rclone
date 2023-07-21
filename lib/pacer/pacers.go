@@ -219,9 +219,21 @@ type GoogleDrive struct {
 	limiter  *rate.Limiter // rate limiter for the minSleep
 }
 
+// Linkbox is a specialized pacer for Linkbox
+type Linkbox struct {
+	minSleep time.Duration // minimum sleep time
+	burst    int           // number of requests without sleeping
+	limiter  *rate.Limiter // rate limiter for the minSleep
+}
+
 // GoogleDriveOption is the interface implemented by all options for the GoogleDrive Calculator
 type GoogleDriveOption interface {
 	ApplyGoogleDrive(*GoogleDrive)
+}
+
+// LinkboxOption is the interface implemented by all options for the LinkboxOption Calculator
+type LinkboxOption interface {
+	ApplyLinkbox(*Linkbox)
 }
 
 // NewGoogleDrive returns a new GoogleDrive Calculator with default values
@@ -229,6 +241,15 @@ func NewGoogleDrive(opts ...GoogleDriveOption) *GoogleDrive {
 	c := &GoogleDrive{
 		minSleep: 10 * time.Millisecond,
 		burst:    100,
+	}
+	c.Update(opts...)
+	return c
+}
+
+// NewLinkbox returns a new Linkbox Calculator with default values
+func NewLinkbox(opts ...LinkboxOption) *Linkbox {
+	c := &Linkbox{
+		minSleep: 200 * time.Millisecond,
 	}
 	c.Update(opts...)
 	return c
@@ -245,6 +266,14 @@ func (c *GoogleDrive) Update(opts ...GoogleDriveOption) {
 	c.limiter = rate.NewLimiter(rate.Every(c.minSleep), c.burst)
 }
 
+// Update applies the Calculator options.
+func (c *Linkbox) Update(opts ...LinkboxOption) {
+	for _, opt := range opts {
+		opt.ApplyLinkbox(c)
+	}
+	c.limiter = rate.NewLimiter(rate.Every(c.minSleep), c.burst)
+}
+
 // ApplyGoogleDrive updates the value on the Calculator
 func (o MinSleep) ApplyGoogleDrive(c *GoogleDrive) {
 	c.minSleep = time.Duration(o)
@@ -253,6 +282,11 @@ func (o MinSleep) ApplyGoogleDrive(c *GoogleDrive) {
 // ApplyGoogleDrive updates the value on the Calculator
 func (o Burst) ApplyGoogleDrive(c *GoogleDrive) {
 	c.burst = int(o)
+}
+
+// Calculate takes the current Pacer state and return the wait time until the next try.
+func (c *Linkbox) Calculate(state State) time.Duration {
+	return c.minSleep
 }
 
 // Calculate takes the current Pacer state and return the wait time until the next try.
